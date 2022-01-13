@@ -16,7 +16,7 @@ We need two steps to withdraw assets from a Layer 2 address to a Layer 1 address
 
 ### Step 1. Submit Withdrawal Request to Godwoken
 
-First, call [gw_submit_withdrawal_request](https://github.com/nervosnetwork/godwoken/blob/develop/docs/RPC.md#method-gw_submit_withdrawal_request) RPC method to burn assets on Layer 2 chain.
+First, call [gw_submit_withdrawal_request](https://github.com/nervosnetwork/godwoken/blob/develop/docs/RPC.md#method-gw_submit_withdrawal_request) RPC method to lock assets on Layer 2 chain.
 
 Meanwhile, Godwoken creates assets on Layer 1 that can be unlocked by the receiver address later.
 
@@ -42,8 +42,6 @@ Note that when making such a request you need to provide some info as parameters
   signature: "0x8109666e73e8e2ce0bc95d95e08a3a77844c9c5e8049882d863c765843f14af57107bf22c00bce8ea1e45cdbc85415d4f497061913bcbfa97258b2b27897a53a01",
 }
 ```
-//可否简单说下为啥要单独把这两个fields提出来说
-### `owner_lock_hash` and `account_script_hash`
 
 In the example above:
 
@@ -144,7 +142,7 @@ const collector = ckbIndexer.collector({ lock: searchParams.script });
 
 ### Step 2. Unlock Withdrawal Cells
 
-Now we can unlock the asset created previously. For safety reasons, it takes some time (about 5 days) before one can unlock the assets. Faster withdrawal will be available in the near future. 
+Now we can unlock the assets created previously. For safety reasons, it takes some time (about 5 days) before one can unlock the assets. Faster withdrawal will be available in the near future. 
 
 When the waiting time is due, the receiver address can make a Layer 1 transaction to unlock the asset cell.
 
@@ -243,9 +241,11 @@ Here is an example:
 
 #### Cell Dependencies
 
-The `cell_deps` should contain `rollup cellDep`, `lock cellDep` and `withdraw cellDep`. 
+A [CKB Cell](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#Celll) contains [Scripts](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#Script). The execution of `Scripts` depends on deployed codes. 
 
-* Add `sudt cellDep` if you have any SUDT withdrawn, and other `cellDeps` required by the receiver lock. // 原文then后面读不太明白,这么改了不知理解对了没有。
+Cell [dependencies](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#celldep) are used to provide the codes. The `cell_deps` should contain `rollup cellDep`, `lock cellDep` and `withdraw cellDep`. 
+
+* Add `sudt cellDep` if you have any SUDT withdrawn, and other `cellDeps` required by the receiver lock. 
 
 * Get `rollup cellDep` from mem pool.
 
