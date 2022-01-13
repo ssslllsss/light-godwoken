@@ -1,17 +1,26 @@
-# How to Withdraw Asset from Godwoken(Layer 2) to CKB(Layer 1)
+# How to Withdraw Assets from Godwoken (Layer 2) to CKB (Layer 1)
 
-- basic knowledge of [godwoken](https://www.nervos.org/godwoken) layer 2 network
-- basic knowledge of [ckb](https://docs.nervos.org/docs/basics/introduction) and ckb [transaction](https://docs.nervos.org/docs/reference/transaction)
+Godwoken is CKB‘s EVM compatible layer 2 built on Nervos Layer 1. As a fast, scalable and sercure platform for decentralized applications, it enables instant transactions with low fees and provides a completely Ethereum compatible environment on Nervos. 
 
-There are two steps withdrawing assets from a layer 2 address to a layer 1 address.
+Before we start, feel free to check the links below to better understand Godwoken Layer 2 and CKB cross-chain transaction:
+
+- Basic knowledge of [Godwoken](https://www.nervos.org/godwoken) Layer 2 network
+- Basic knowledge of [CKB](https://docs.nervos.org/docs/basics/introduction) and CKB [transaction](https://docs.nervos.org/docs/reference/transaction)
+
+CKB cross-chain withdrawal can be outlined in the graph below:
 
 ![withdrawal](../image/sequence-godwoken-withdrawal.png)
 
+
+We need two steps to withdraw assets from a Layer 2 address to a Layer 1 address.
+
 ### Step 1. Submit Withdrawal Request to Godwoken
 
-The first step is to call [gw_submit_withdrawal_request](https://github.com/nervosnetwork/godwoken/blob/develop/docs/RPC.md#method-gw_submit_withdrawal_request) RPC method to burn assets on layer 2 chain
-and in the meantime, Godwoken creates the assets on layer 1 which can later be unlocked by the receiver address.
-Note that when making such a request you need to provide some info as parameters,
+First, call [gw_submit_withdrawal_request](https://github.com/nervosnetwork/godwoken/blob/develop/docs/RPC.md#method-gw_submit_withdrawal_request) RPC method to lock assets on Layer 2 chain.
+
+Meanwhile, Godwoken creates assets on Layer 1 that can be unlocked by the receiver address later.
+
+Note that when making such a request you need to provide some info as parameters, for instance:
 
 ```json5
 {
@@ -34,14 +43,12 @@ Note that when making such a request you need to provide some info as parameters
 }
 ```
 
-### `owner_lock_hash` And `account_script_hash`
+In the example above:
 
-In the example above
+- The `owner` field of `owner_lock_hash` indicates the owner of Layer 1
+- The `account` field of `account_script_hash` indicates the `address` of Layer 2
 
-- `owner_lock_hash`'s `owner` indicates the owner of layer 1
-- `account_script_hash`'s `account` indicates the `address` of layer 2
-
-To calc the hashes, we can see the sample code below
+To calculate the hashes, let's look at the sample code below:
 
 ```ts
 import { utils, helpers } from "@ckb-lumos/lumos";
@@ -70,7 +77,7 @@ Once you have successfully submitted the RPC request, the return hash value can 
 }
 ```
 
-the return value should look like:
+The return value should look like:
 
 <details>
   <summary markdown="span">return value of gw_get_withdrawal</summary>
@@ -105,9 +112,11 @@ the return value should look like:
 
 </details>
 
-The `status` field could be `pending` or `committed`, indicating the different status of the withdrawal.
+Depending on the status of the withdrawal, the `status` field can be `pending` or `committed`.
 
-Then a cell containing the assets is created on layer 1, to list all withdrawal cells requested by a layer 2 account, let's name it `AliceL2`, we can make a query using `@ckb-lumos/ckb-indexer` like this:
+Now a cell containing the assets is created on Layer 1. To list all withdrawal cells requested by a Layer 2 account, we can make a query using `@ckb-lumos/ckb-indexer`. 
+
+Let's name the account as `AliceL2`, then the query is as follows:
 
 ```ts
 const getWithdrawalCellSearchParams = function (AliceL2: string) {
@@ -133,9 +142,11 @@ const collector = ckbIndexer.collector({ lock: searchParams.script });
 
 ### Step 2. Unlock Withdrawal Cells
 
-The second step is to unlock the asset created in step one, it needs to take some time(about 5 days) before one can unlock the assets for safety reasons.
-We will support fast withdrawal in near future. When the waiting time is due, the receiver address can make a layer 1 transaction to unlock the asset cell,
-the transaction should take the withdrawal cell as input and another ckb cell to pay the transaction fee, in the output withdraw cell, just change the lock of the asset cell to the receiver lock.
+Now we can unlock the assets created previously. For safety reasons, it takes some time (about 5 days) before one can unlock the assets. Faster withdrawal will be available in the near future. 
+
+When the waiting time is due, the receiver address can make a Layer 1 transaction to unlock the asset cell.
+
+The transaction takes the withdrawal cell as input and another CKB cell to pay the transaction fee in the output withdraw cell, by changing the lock of the asset cell to the receiver lock.
 
 ![unlock](../image/unlock.png)
 
@@ -230,7 +241,19 @@ Here is an example:
 
 #### Cell Dependencies
 
-The `cell_deps` should contain `rollup cellDep`, `lock cellDep` and `withdraw cellDep`. Remember to add `sudt cellDep` if you have any SUDT withdrawn, then other `cellDep`s required by the receiver lock. You can get `withdraw cellDep` and `sudt cellDep` from some static config file, `lock cellDep` depends on which lock you would use, we use Omni-lock in the example, so we added `Omni-lock cellDep`. `rollup cellDep` should be obtained from mem pool:
+A [CKB Cell](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#Celll) contains [Scripts](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#Script). The execution of `Scripts` depends on deployed codes. 
+
+Cell [dependencies](https://github.com/nervosnetwork/rfcs/blob/master/rfcs/0022-transaction-structure/0022-transaction-structure.md#celldep) are used to provide the codes. The `cell_deps` should contain `rollup cellDep`, `lock cellDep` and `withdraw cellDep`. 
+
+* Add `sudt cellDep` if you have any SUDT withdrawn, and other `cellDeps` required by the receiver lock. 
+
+* Get `rollup cellDep` from mem pool.
+
+* Get `withdraw cellDep` and `sudt cellDep` from static config files. 
+
+* Choose the right `lock cellDep` depening on which lock you use. 
+
+In the example below, we use Omni-lock by adding `Omni-lock cellDep`:
 
 ```ts
 async function getRollupCellDep(): Promise<CellDep> {
@@ -262,4 +285,4 @@ async function getRollupCellDep(): Promise<CellDep> {
 - [Godwoken testnet config](https://github.com/nervosnetwork/godwoken-public/blob/master/testnet/config/scripts-deploy-result.json)
 - [Polyjuice Provider](https://github.com/nervosnetwork/polyjuice-provider)
 - [Godwoken Web3](https://github.com/nervosnetwork/godwoken-web3#godwoken-web3-api) A Web3 RPC compatible layer build upon Godwoken/Polyjuice.
-- [lumos](https://github.com/nervosnetwork/lumos) A library for building dAPP on CKB
+- [Lumos](https://github.com/nervosnetwork/lumos) A library for building dAPP on CKB
